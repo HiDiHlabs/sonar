@@ -130,3 +130,6 @@ dmypy.json
 
 # extracted numpy arrays:
 *.npy
+
+# any generated output files:
+./test/osmFISH/output/*
