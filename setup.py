@@ -8,7 +8,6 @@ setup(
     author='Sebastian Tiesmeyer',
     author_email='sebastian.tiesmeyer@bih-charite.de',
     license='BSD 2-clause',
-    packages=['sonar'],
     install_requires=[
     
     ],
