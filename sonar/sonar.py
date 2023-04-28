@@ -124,7 +124,7 @@ class Sonar():
 
         return self.co_occurrence_from_tensor(topographic_tensor)
     
-    def co_occurrence_from_tensor(self, hists, interpolate=True, tissue_mask=None, progbar=False):
+    def co_occurrence_from_tensor(self, hists, interpolate=True, tissue_mask=None, progbar=False, normalize=True):
         """Calculates co-occurrence curves for a topographic tensor.
         
         Args:
@@ -173,8 +173,13 @@ class Sonar():
                 n_computations += n_classes-i-1
                 pbar.update(n_classes-i)
 
-        if interpolate:            
-            return _interpolate(radii, co_occurrences, 1)
+        if interpolate: 
+            co_occurrences = _interpolate(radii, co_occurrences, 1)
+            if normalize:
+                co_occurrences = co_occurrences/(co_occurrences[:,:,0].diag()[:,None,None])   
+            return co_occurrences
         
         else:
+            if normalize:
+                co_occurrences = co_occurrences/(co_occurrences[:,:,0].diag()[:,None,None])
             return co_occurrences,radii
