@@ -176,7 +176,7 @@ class Sonar():
         if interpolate: 
             co_occurrences = _interpolate(radii, co_occurrences, 1)
             if normalize:
-                co_occurrences = co_occurrences/(co_occurrences[:,:,0].diag()[:,None,None])   
+                co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
             return co_occurrences
         
         else:
