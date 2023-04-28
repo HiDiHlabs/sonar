@@ -13,7 +13,6 @@ def rescale_topographic_tensor(topographic_tensor, scaling_factor):
         topographic_tensor (torch.Tensor): Rescaled topographic tensor."""
     
     topographic_tensor = t.tensor(topographic_tensor, dtype=float)
-
     
     return t.nn.functional.interpolate(topographic_tensor.unsqueeze(0), scale_factor=scaling_factor, mode='nearest').squeeze(0)
 
