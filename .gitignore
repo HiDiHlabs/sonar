@@ -132,4 +132,5 @@ dmypy.json
 *.npy
 
 # any generated output files:
-./test/osmFISH/output/*
+*.png
+*.mp4
