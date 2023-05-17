@@ -61,7 +61,7 @@ def _get_kernels(max_radius, linear_steps, normalize=True):
 
         kernels.append(kernel_2)
 
-    kernels = np.array(kernels)
+    kernels = t.tensor(kernels,dtype=torch.float32)
 
     if normalize:
         kernels = kernels/kernels.sum(axis=(1,2))[:,None,None]
@@ -104,7 +104,7 @@ class Sonar():
         self.normalize = normalize
         self.device = device
         self.kernels, self.vals = _get_kernels(max_radius, linear_steps,normalize=True)
-        self.kernels = t.tensor(self.kernels,device=device)
+        self.kernels = t.tensor(self.kernels,dtype=torch.float32,device=device)
         
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -134,7 +134,7 @@ class Sonar():
             co_occurrence (nd-iterable): Co-occurrence curves.
         """
 
-        hists = t.tensor(hists,device=self.device)
+        hists = t.tensor(hists,dtype=torch.float32,device=self.device)
 
         # Determine dimensions of the input/output/intermediate variables
         n_classes = hists.shape[0]      
@@ -147,7 +147,7 @@ class Sonar():
         shape = [kernel_size[i]+map_size[i] for i in range(2)]
         fshape = [sp_fft.next_fast_len(shape[a], True) for a in [0,1]]
 
-        kernels_fft = (t.fft.rfftn(kernels, fshape,dim=[1,2]))
+        kernels_fft = (t.fft.rfftn(kernels.float(), fshape,dim=[1,2]))
 
         width_kernel=kernels[0].shape[0]
 
@@ -157,9 +157,9 @@ class Sonar():
         with tqdm.tqdm(total=total_computations, disable=~progbar) as pbar:
             for i in range(n_classes):
                 # print(i)
-                h1_fft = t.fft.rfftn(hists[i], fshape,dim=[0,1])
+                h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
                 h1_fftprod =  (h1_fft*kernels_fft)
-                h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2])
+                h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2]).float()
                 h1_conv_ =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
                                 width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
 
