@@ -1,6 +1,7 @@
 """Sonar module. Generates co-occurrence curves from topographic maps."""	
 
 import torch
+from sonar.utils import PointProcess
 
 if torch.cuda.is_available():
     import torch as t
@@ -134,7 +135,8 @@ class Sonar():
             co_occurrence (nd-iterable): Co-occurrence curves.
         """
 
-        hists = t.tensor(hists,dtype=torch.float32,device=self.device)
+        if not (type(hists) is PointProcess):
+            hists = t.tensor(hists,dtype=torch.float32,device=self.device)
 
         # Determine dimensions of the input/output/intermediate variables
         n_classes = hists.shape[0]      
