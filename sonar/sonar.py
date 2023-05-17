@@ -62,7 +62,7 @@ def _get_kernels(max_radius, linear_steps, normalize=True):
 
         kernels.append(kernel_2)
 
-    kernels = t.tensor(kernels,dtype=torch.float32)
+    kernels = np.array(kernels,dtype=float)
 
     if normalize:
         kernels = kernels/kernels.sum(axis=(1,2))[:,None,None]
@@ -125,7 +125,7 @@ class Sonar():
 
         return self.co_occurrence_from_tensor(topographic_tensor)
     
-    def co_occurrence_from_tensor(self, hists, interpolate=True, tissue_mask=None, progbar=False, normalize=True):
+    def co_occurrence_from_tensor(self, hists, interpolate=True,  progbar=False, normalize=True):
         """Calculates co-occurrence curves for a topographic tensor.
         
         Args:
@@ -156,23 +156,29 @@ class Sonar():
         total_computations = (n_classes**2+n_classes)/2
         n_computations = 0
 
-        with tqdm.tqdm(total=total_computations, disable=~progbar) as pbar:
-            for i in range(n_classes):
-                # print(i)
-                h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
-                h1_fftprod =  (h1_fft*kernels_fft)
-                h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2]).float()
-                h1_conv_ =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
-                                width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
 
-                h1_product=h1_conv_*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
-                co_occurrences[i,i]=h1_product.sum(dim=(1,2)).cpu()
+        if progbar:
+            pbar = tqdm.tqdm(total=total_computations)
 
-                for j in range(i+1,n_classes):
-                    h2_product=h1_conv_*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
-                    co_occurrences[i,j] = h2_product.sum(dim=(1,2)).cpu()
-                    co_occurrences[j,i]= co_occurrences[i,j]
-                n_computations += n_classes-i-1
+        # with tqdm.tqdm(total=total_computations, disable=~progbar) as _:
+        for i in range(n_classes):
+            # print(i)
+            h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
+            h1_fftprod =  (h1_fft*kernels_fft)
+            h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2]).float()
+            h1_conv_ =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
+                            width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
+
+            h1_product=h1_conv_*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
+            co_occurrences[i,i]=h1_product.sum(dim=(1,2)).cpu()
+
+            for j in range(i+1,n_classes):
+                h2_product=h1_conv_*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
+                co_occurrences[i,j] = h2_product.sum(dim=(1,2)).cpu()
+                co_occurrences[j,i]= co_occurrences[i,j]
+            n_computations += n_classes-i-1
+
+            if progbar:
                 pbar.update(n_classes-i)
 
         if interpolate: 
