@@ -190,4 +190,4 @@ class Sonar():
         else:
             if normalize:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
-            return co_occurrences,radii
+            return radii, co_occurrences
