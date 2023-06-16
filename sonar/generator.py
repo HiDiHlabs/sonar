@@ -89,7 +89,7 @@ class Generator():
         template_co_occurrence = t.tensor(template_co_occurrence, dtype=t.float32, device=self.device)
         counts = template_co_occurrence[:,:,0].diagonal()
         generative_map = t.rand((template_co_occurrence.shape[0],self.shape[0],self.shape[1]), dtype=t.float32, device=self.device)
-        generative_map *= counts[:,None,None]/generative_map.sum(dim=(1,2))[:,None,None]
+        # generative_map *= counts[:,None,None]/generative_map.sum(dim=(1,2))[:,None,None]
 
         # print(generative_map.shape, template_co_occurrence.shape)
 
@@ -115,15 +115,20 @@ class Generator():
             generative_map = generative_map*(1-momentum)+generative_map_old*momentum
 
             if (render_args is not None) and (i%render_args['steps_per_frame']==0):
-                fig, ax = plt.subplots(figsize=(15,8))
-
-                plt.subplot(1,2,1)
-                plt.imshow(generative_map.argmax(0).cpu().numpy(),cmap='nipy_spectral',interpolation='none',vmin=0,vmax=generative_map.shape[0]-1)
-
-                plt.subplot(1,2,2)
-                plt.plot(d_auto_coocs.T)
-
-                plt.savefig(f'{render_args["save_dir"]}/{i:0>4d}.png')
-                plt.close()
-
+                pass
+                
         return generative_map
+
+    def render_map(self,generative_map):
+        """ """
+        fig, ax = plt.subplots(figsize=(15,8))
+
+        plt.subplot(1,2,1)
+        plt.imshow(generative_map.argmax(0).cpu().numpy(),cmap='nipy_spectral',interpolation='none',vmin=0,vmax=generative_map.shape[0]-1)
+
+        plt.subplot(1,2,2)
+        plt.plot(d_auto_coocs.T)
+
+        plt.savefig(f'{render_args["save_dir"]}/{i:0>4d}.png')
+        plt.close()
+
