@@ -98,7 +98,7 @@ class Sonar():
         normalize (bool): Whether to normalize the co-occurrence curves.
     """
     
-    def __init__(self, max_radius=20, linear_steps=20, normalize=True, device=device):
+    def __init__(self, max_radius=20, linear_steps=20, normalize=True, device=device,edge_correction=False):
         
         self.max_radius = max_radius
         self.linear_steps = linear_steps
@@ -106,6 +106,7 @@ class Sonar():
         self.device = device
         self.kernels, self.vals = _get_kernels(max_radius, linear_steps,normalize=True)
         self.kernels = t.tensor(self.kernels,dtype=torch.float32,device=device)
+        self.edge_correction = edge_correction
         
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -143,6 +144,7 @@ class Sonar():
         kernels,radii = self.kernels,self.vals
         map_size = hists.shape[1:]
         kernel_size = self.kernels.shape[1:]
+            
 
         co_occurrences = np.empty((n_classes, n_classes,self.kernels.shape[0]))
 
@@ -152,6 +154,16 @@ class Sonar():
         kernels_fft = (t.fft.rfftn(kernels.float(), fshape,dim=[1,2]))
 
         width_kernel=kernels[0].shape[0]
+        
+        if self.edge_correction:
+            bg_mask = hists.sum(dim=0)
+            bg_fft = t.fft.rfftn(bg_mask.float(), fshape,dim=[0,1])
+            bg_fftprod =  (bg_fft*kernels_fft)
+
+            bg_conv = t.fft.irfftn(bg_fftprod,fshape,dim=[1,2]).float()
+            bg_conv =  bg_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
+                            width_kernel//2:width_kernel//2+hists[0].shape[1]] 
+            bg_conv[bg_conv<=0]=1
 
         total_computations = (n_classes**2+n_classes)/2
         n_computations = 0
@@ -165,15 +177,20 @@ class Sonar():
             # print(i)
             h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
             h1_fftprod =  (h1_fft*kernels_fft)
+
             h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2]).float()
-            h1_conv_ =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
+            h1_conv =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
                             width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
 
-            h1_product=h1_conv_*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
+            if self.edge_correction:
+                h1_conv = h1_conv/bg_conv
+                # h1_conv[h1_conv<0]=0
+
+            h1_product=h1_conv*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
             co_occurrences[i,i]=h1_product.sum(dim=(1,2)).cpu()
 
             for j in range(i+1,n_classes):
-                h2_product=h1_conv_*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
+                h2_product=h1_conv*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
                 co_occurrences[i,j] = h2_product.sum(dim=(1,2)).cpu()
                 co_occurrences[j,i]= co_occurrences[i,j]
             n_computations += n_classes-i-1
