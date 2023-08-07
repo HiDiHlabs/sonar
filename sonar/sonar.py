@@ -84,7 +84,7 @@ def _interpolate(x,y,step):
 
     # return lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,y,s=0,k=5), extrapolate=False)
 
-    return np.apply_along_axis(lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,x_,s=0,k=5), extrapolate=False)(np.arange(0,x.max()*step)),2,y)
+    return np.apply_along_axis(lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,x_,s=1,k=2), extrapolate=False)(np.arange(0,x.max()*step)),2,y)
 
 class Sonar():
     """Generates co-occurrence curves from topographic maps.
