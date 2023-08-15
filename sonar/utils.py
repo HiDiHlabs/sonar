@@ -4,6 +4,7 @@
 
 import torch as t
 import numpy as np
+from scipy.special import ellipk, ellipe
 
 def rescale_topographic_tensor(topographic_tensor, scaling_factor):
     """Rescales a topographic tensor by a given factor along the spatial axes [1,2].
@@ -63,3 +64,17 @@ class PointProcess():
         if isinstance(index, int):
             return self._generate_histogram(index)
         
+
+def create_distant_profile_kernel(r,edge_length=None):
+    if edge_length is None:
+        edge_length = r*2
+
+    d = np.arange(edge_length)-edge_length//2
+    m = 1-(d**2/r**2)
+    elliptic_factor = ((2-m)*ellipe(m)-2*(1-m)*ellipk(m))
+
+    intersect_volume = 8*r**3/3
+    intersection_analytical = np.nan_to_num(elliptic_factor*intersect_volume)
+
+    intersection_analytical[:(edge_length)//4]=0
+    intersection_analytical[-(edge_length)//4:]=0
