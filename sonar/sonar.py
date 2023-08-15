@@ -15,7 +15,7 @@ from scipy import fft as sp_fft
 
 import tqdm
 
-def _get_kernels(max_radius, linear_steps, normalize=True):
+def _get_kernels(max_radius, linear_steps, circumference_normalization=True):
     """Generates a range of circular kernels used to calculate co-occurrence curves.
     
     Args:
@@ -64,7 +64,7 @@ def _get_kernels(max_radius, linear_steps, normalize=True):
 
     kernels = np.array(kernels,dtype=float)
 
-    if normalize:
+    if circumference_normalization:
         kernels = kernels/kernels.sum(axis=(1,2))[:,None,None]
 
     return (kernels,vals)
@@ -95,16 +95,16 @@ class Sonar():
         n_bins (int): Number of bins in the co-occurrence curves.
         min_val (float): Minimum value of the co-occurrence curves.
         max_val (float): Maximum value of the co-occurrence curves.
-        normalize (bool): Whether to normalize the co-occurrence curves.
+        circumference_normalization (bool): Whether to normalize the co-occurrence curves.
     """
     
-    def __init__(self, max_radius=20, linear_steps=20, normalize=True, device=device,edge_correction=False):
+    def __init__(self, max_radius=20, linear_steps=20, circumference_normalization=True, device=device,edge_correction=False):
         
         self.max_radius = max_radius
         self.linear_steps = linear_steps
-        self.normalize = normalize
+        self.circumference_normalization = circumference_normalization
         self.device = device
-        self.kernels, self.vals = _get_kernels(max_radius, linear_steps,normalize=True)
+        self.kernels, self.vals = _get_kernels(max_radius, linear_steps,circumference_normalization=circumference_normalization)
         self.kernels = t.tensor(self.kernels,dtype=torch.float32,device=device)
         self.edge_correction = edge_correction
         
@@ -126,7 +126,7 @@ class Sonar():
 
         return self.co_occurrence_from_tensor(topographic_tensor)
     
-    def co_occurrence_from_tensor(self, hists, interpolate=True,  progbar=False, normalize=True):
+    def co_occurrence_from_tensor(self, hists, interpolate=True,  progbar=False, area_normalization=True):
         """Calculates co-occurrence curves for a topographic tensor.
         
         Args:
@@ -200,11 +200,11 @@ class Sonar():
 
         if interpolate: 
             co_occurrences = _interpolate(radii, co_occurrences, 1)
-            if normalize:
+            if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
             return co_occurrences
         
         else:
-            if normalize:
+            if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
             return radii, co_occurrences
