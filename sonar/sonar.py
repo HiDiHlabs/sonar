@@ -15,27 +15,31 @@ from scipy import fft as sp_fft
 
 import tqdm
 
-def _get_kernels(max_radius, linear_steps, circumference_normalization=True):
+def _get_kernels(max_radius, linear_steps, max_radius_step_size, circumference_normalization=True):
     """Generates a range of circular kernels used to calculate co-occurrence curves.
     
     Args:
         max_radius (int): Maximum radius of the kernels.
         linear_steps (int): Number of linear steps in the kernels.
+        max_radius_step_size (int): Maximum step size of the kernels.
+        circumference_normalization (bool): Whether to normalize the co-occurrence curves.
         
     Returns:
         kernels (np.array): Array of kernels.
-        vals (np.array): Array of radii corresponding to the kernels.
+        radii (np.array): Array of radii corresponding to the kernels.
     """
 
     if linear_steps > max_radius:
         linear_steps = max_radius
 
-    vals = np.ones((max_radius)+1)
-    vals[0] = 0
-    vals[linear_steps+1:] += np.arange(max_radius-linear_steps)
-    vals = np.cumsum(vals)
-    vals = vals[:(vals < max_radius).sum()+1]
-    vals[-1] = max_radius
+    radii = np.ones((max_radius)+1)
+    radii[0] = 0
+    radii[linear_steps+1:] += np.arange(max_radius-linear_steps)
+    if max_radius_step_size is not None:
+        radii[radii > max_radius_step_size] = max_radius_step_size
+    radii = np.cumsum(radii)
+    radii = radii[:(radii < max_radius).sum()+1]
+    radii[-1] = max_radius
 
     span = np.arange(-max_radius, max_radius + 1)
     X, Y = np.meshgrid(span, span)
@@ -45,10 +49,10 @@ def _get_kernels(max_radius, linear_steps, circumference_normalization=True):
     kernel_1[max_radius, max_radius] = 1
     kernels = [kernel_1]
 
-    for i in range(len(vals)-1):
+    for i in range(len(radii)-1):
 
-        r1 = vals[i]
-        r2 = vals[i+1]
+        r1 = radii[i]
+        r2 = radii[i+1]
 
         kernel_1 = (dists-r1)
         kernel_1 = -(kernel_1-1)*(kernel_1 < 1)
@@ -67,10 +71,10 @@ def _get_kernels(max_radius, linear_steps, circumference_normalization=True):
     if circumference_normalization:
         kernels = kernels/kernels.sum(axis=(1,2))[:,None,None]
 
-    return (kernels,vals)
+    return (kernels,radii)
 
 
-def _interpolate(x,y,step):
+def _interpolate(x,y,step, method='linear'):
 
     from scipy import interpolate 
     """_interpolat generates linear interpolation from the x,y to create mutual distance curves in um units
@@ -80,33 +84,40 @@ def _interpolate(x,y,step):
     :type y: np array
     :param step: step size of x,y
     :type step: float
+    :param method: interpolation method out of ['linear','BSpline'], defaults to 'linear'
     """
 
     # return lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,y,s=0,k=5), extrapolate=False)
 
-    return np.apply_along_axis(lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,x_,s=1,k=2), extrapolate=False)(np.arange(0,x.max()*step)),2,y)
+    if method=='linear':
+        return np.apply_along_axis(lambda x_ :  interpolate.interp1d(x,x_,kind='linear',fill_value='extrapolate')(np.arange(0,x.max()*step)),2,y)
+    elif method=='BSpline':
+        return np.apply_along_axis(lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,x_,s=1,k=2), extrapolate=False)(np.arange(0,x.max()*step)),2,y)
 
 class Sonar():
     """Generates co-occurrence curves from topographic maps.
     
     Args:
         max_radius (int): Maximum radius of the kernels.
-        linear_steps (int): Number of linear steps in the kernels.
+        linear_radius_steps (int): Number of linear steps in the kernels.
+        max_radius_step_size (int): Maximum step size of the kernels.
         n_bins (int): Number of bins in the co-occurrence curves.
         min_val (float): Minimum value of the co-occurrence curves.
         max_val (float): Maximum value of the co-occurrence curves.
         circumference_normalization (bool): Whether to normalize the co-occurrence curves.
     """
     
-    def __init__(self, max_radius=20, linear_steps=20, circumference_normalization=True, device=device,edge_correction=False):
+    def __init__(self, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
         
         self.max_radius = max_radius
-        self.linear_steps = linear_steps
+        self.max_radius_step_size = max_radius_step_size
+        self.linear_steps = linear_radius_steps
         self.circumference_normalization = circumference_normalization
         self.device = device
-        self.kernels, self.vals = _get_kernels(max_radius, linear_steps,circumference_normalization=circumference_normalization)
+        self.kernels, self.radii = _get_kernels(max_radius, linear_radius_steps, max_radius_step_size, circumference_normalization=circumference_normalization)
         self.kernels = t.tensor(self.kernels,dtype=torch.float32,device=device)
         self.edge_correction = edge_correction
+        self.pixel_counts = None
         
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -126,7 +137,7 @@ class Sonar():
 
         return self.co_occurrence_from_tensor(topographic_tensor)
     
-    def co_occurrence_from_tensor(self, hists, interpolate=True,  progbar=False, area_normalization=True):
+    def co_occurrence_from_tensor(self, hists, interpolate='linear',  progbar=False, area_normalization=True):
         """Calculates co-occurrence curves for a topographic tensor.
         
         Args:
@@ -139,9 +150,11 @@ class Sonar():
         if not (type(hists) is PointProcess):
             hists = t.tensor(hists,dtype=torch.float32,device=self.device)
 
+        self.pixel_counts = hists.sum(dim=(1,2)).cpu().numpy()
+
         # Determine dimensions of the input/output/intermediate variables
         n_classes = hists.shape[0]      
-        kernels,radii = self.kernels,self.vals
+        kernels,radii = self.kernels,self.radii
         map_size = hists.shape[1:]
         kernel_size = self.kernels.shape[1:]
             
@@ -199,7 +212,7 @@ class Sonar():
                 pbar.update(n_classes-i)
 
         if interpolate: 
-            co_occurrences = _interpolate(radii, co_occurrences, 1)
+            co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
             return co_occurrences
