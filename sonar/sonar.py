@@ -12,6 +12,7 @@ else:
 
 import numpy as np
 from scipy import fft as sp_fft
+import pandas as pd
 
 import tqdm
 
@@ -118,7 +119,12 @@ class Sonar():
         self.kernels = t.tensor(self.kernels,dtype=torch.float32,device=device)
         self.edge_correction = edge_correction
         self.pixel_counts = None
-        
+        # TODO:
+        # self.co_occurrence=None
+        # self.radii=None
+        # self.meta = pd.DataFrame() <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
+        # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
+
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
         
@@ -221,3 +227,4 @@ class Sonar():
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
             return radii, co_occurrences
+
