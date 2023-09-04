@@ -123,18 +123,11 @@ class Sonar():
         # TODO:
         self.co_occurrence=None
         self.radii=None
-<<<<<<< HEAD
-        # self.meta = pd.DataFrame() <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
-        # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
-
-        
-=======
         self.meta = None # <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
         # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
 
     def create_metadata(self, labels): #need to add colors optionally
          self.meta = pd.DataFrame(rows=labels)
->>>>>>> 146502312818752a07c5879498ee8ca440946f4c
 
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -239,9 +232,6 @@ class Sonar():
             co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
-<<<<<<< HEAD
-                self.co_occurrence = co_occurrences
-=======
                 for i in range(n):
                     for j in range(n):
                         for k in range(m):
@@ -249,15 +239,11 @@ class Sonar():
 
                 co_occurrences = normalized_coocur
                 self.co_occurrence = normalized_coocur
->>>>>>> 146502312818752a07c5879498ee8ca440946f4c
             return co_occurrences
         
         else:
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
-<<<<<<< HEAD
-                self.co_occurrence = co_occurrences
-=======
                 for i in range(n):
                     for j in range(n):
                         for k in range(m):
@@ -265,7 +251,6 @@ class Sonar():
 
                 co_occurrences = normalized_coocur
                 self.co_occurrence = normalized_coocur
->>>>>>> 146502312818752a07c5879498ee8ca440946f4c
                 self.radii = radii
             return radii, co_occurrences
         
