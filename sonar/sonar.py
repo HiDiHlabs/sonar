@@ -120,10 +120,12 @@ class Sonar():
         self.edge_correction = edge_correction
         self.pixel_counts = None
         # TODO:
-        # self.co_occurrence=None
-        # self.radii=None
+        self.co_occurrence=None
+        self.radii=None
         # self.meta = pd.DataFrame() <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
         # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
+
+        
 
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -221,10 +223,15 @@ class Sonar():
             co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
+                self.co_occurrence = co_occurrences
             return co_occurrences
         
         else:
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
+                self.co_occurrence = co_occurrences
+                self.radii = radii
             return radii, co_occurrences
+        
+    
 
