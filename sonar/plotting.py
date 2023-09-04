@@ -16,13 +16,14 @@ from distinctipy import distinctipy
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import gridspec
 import random
-random.seed(13)
+
 
 def plot_enrichment_report(co_occurrence, significant_enrichment, metadata, 
                            threshold=0.0005, scaling = 1, #if the initial file was scaled
                            filename = "mouse_brain_", #if needed
                            seed_ = 13 #if needed
-                           ):
+                           ):   
+    random.seed(seed_)
 
     ct = list(metadata[metadata['pixel_proportions']>threshold].index)
 

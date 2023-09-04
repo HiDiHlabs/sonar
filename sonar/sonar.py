@@ -108,7 +108,7 @@ class Sonar():
         circumference_normalization (bool): Whether to normalize the co-occurrence curves.
     """
     
-    def __init__(self, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
+    def __init__(self, labels, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
         
         self.max_radius = max_radius
         self.max_radius_step_size = max_radius_step_size
@@ -123,11 +123,12 @@ class Sonar():
         # TODO:
         self.co_occurrence=None
         self.radii=None
-        self.meta = None # <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
+        self.labels = labels
+        self.meta = pd.DataFrame(index=labels) # <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
         # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
 
-    def create_metadata(self, labels): #need to add colors optionally
-         self.meta = pd.DataFrame(rows=labels)
+    # def create_metadata(self, labels): #need to add colors optionally
+    #     self.meta = pd.DataFrame(rows=labels)
 
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -232,27 +233,28 @@ class Sonar():
             co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
-                for i in range(n):
-                    for j in range(n):
-                        for k in range(m):
-                            normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+                # for i in range(n):
+                #     for j in range(n):
+                #         for k in range(m):
+                #             normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
 
-                co_occurrences = normalized_coocur
-                self.co_occurrence = normalized_coocur
+                # co_occurrences = normalized_coocur
+                # self.co_occurrence = normalized_coocur
             return co_occurrences
         
         else:
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
-                for i in range(n):
-                    for j in range(n):
-                        for k in range(m):
-                            normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+                # for i in range(n):
+                #     for j in range(n):
+                #         for k in range(m):
+                #             normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
 
-                co_occurrences = normalized_coocur
-                self.co_occurrence = normalized_coocur
-                self.radii = radii
+                # co_occurrences = normalized_coocur
+                # self.co_occurrence = normalized_coocur
+                # self.radii = radii
             return radii, co_occurrences
-        
-    
+
+            # self.co_occurrence = co_occurrences
+            # return co_occurrences
 
