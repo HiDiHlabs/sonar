@@ -119,13 +119,22 @@ class Sonar():
         self.kernels = t.tensor(self.kernels,dtype=torch.float32,device=device)
         self.edge_correction = edge_correction
         self.pixel_counts = None
+        self.pixel_proportions = None
         # TODO:
         self.co_occurrence=None
         self.radii=None
+<<<<<<< HEAD
         # self.meta = pd.DataFrame() <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
         # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
 
         
+=======
+        self.meta = None # <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
+        # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
+
+    def create_metadata(self, labels): #need to add colors optionally
+         self.meta = pd.DataFrame(rows=labels)
+>>>>>>> 146502312818752a07c5879498ee8ca440946f4c
 
     def co_occurrence_from_map(self, topographic_map):
         """Calculates co-occurrence curves for a topographic map.
@@ -159,6 +168,9 @@ class Sonar():
             hists = t.tensor(hists,dtype=torch.float32,device=self.device)
 
         self.pixel_counts = hists.sum(dim=(1,2)).cpu().numpy()
+        self.pixel_proportions = self.pixel_counts/np.sum(self.pixel_counts)
+        self.meta["pixel_counts"] = self.pixel_counts
+        self.meta["pixel_proportions"] = self.pixel_proportions
 
         # Determine dimensions of the input/output/intermediate variables
         n_classes = hists.shape[0]      
@@ -219,17 +231,41 @@ class Sonar():
             if progbar:
                 pbar.update(n_classes-i)
 
+        # final normalization
+        n, _, m = co_occurrences.shape
+        normalized_coocur = np.zeros_like(co_occurrences)
+
         if interpolate: 
             co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
+<<<<<<< HEAD
                 self.co_occurrence = co_occurrences
+=======
+                for i in range(n):
+                    for j in range(n):
+                        for k in range(m):
+                            normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+
+                co_occurrences = normalized_coocur
+                self.co_occurrence = normalized_coocur
+>>>>>>> 146502312818752a07c5879498ee8ca440946f4c
             return co_occurrences
         
         else:
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
+<<<<<<< HEAD
                 self.co_occurrence = co_occurrences
+=======
+                for i in range(n):
+                    for j in range(n):
+                        for k in range(m):
+                            normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+
+                co_occurrences = normalized_coocur
+                self.co_occurrence = normalized_coocur
+>>>>>>> 146502312818752a07c5879498ee8ca440946f4c
                 self.radii = radii
             return radii, co_occurrences
         
