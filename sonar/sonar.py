@@ -108,7 +108,7 @@ class Sonar():
         circumference_normalization (bool): Whether to normalize the co-occurrence curves.
     """
     
-    def __init__(self, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
+    def __init__(self, labels, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
         
         self.max_radius = max_radius
         self.max_radius_step_size = max_radius_step_size
@@ -122,7 +122,7 @@ class Sonar():
         # TODO:
         # self.co_occurrence=None
         # self.radii=None
-        # self.meta = pd.DataFrame() <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
+        self.meta = pd.DataFrame(index=labels) #<- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
         # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
 
     def co_occurrence_from_map(self, topographic_map):
@@ -157,6 +157,9 @@ class Sonar():
             hists = t.tensor(hists,dtype=torch.float32,device=self.device)
 
         self.pixel_counts = hists.sum(dim=(1,2)).cpu().numpy()
+        self.pixel_proportions = self.pixel_counts/np.sum(self.pixel_counts)
+        self.meta["pixel_counts"] = self.pixel_counts
+        self.meta["pixel_proportions"] = self.pixel_proportions
 
         # Determine dimensions of the input/output/intermediate variables
         n_classes = hists.shape[0]      
