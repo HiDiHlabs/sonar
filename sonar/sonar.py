@@ -160,6 +160,10 @@ class Sonar():
         self.pixel_proportions = self.pixel_counts/np.sum(self.pixel_counts)
         self.meta["pixel_counts"] = self.pixel_counts
         self.meta["pixel_proportions"] = self.pixel_proportions
+        self.meta["pixel_percentage"] = self.meta["pixel_proportions"]*100
+        self.meta["pixel_percentage"] = self.meta["pixel_percentage"].round(2).map(lambda x: f'{x:.2f}')
+        self.meta["pixel_percentage"] = self.meta["pixel_percentage"].astype(float)
+
 
         # Determine dimensions of the input/output/intermediate variables
         n_classes = hists.shape[0]      
