@@ -6,7 +6,7 @@
 """The following function is the large plotting function. 
 Editional notes: 
 * I really think that significance test should be included in the sonar object. Then we can reduce the number of arguments in the function.
-    so all arguments like "significant_enri, significant_depl, normalized_coocur"can go away, once they are in sonar
+    so all arguments like "significant_enrichment, significant_depletion, normalized_coocurrence"can go away, once they are in sonar
 * I was a bit confused on how to make plots flexible. Maybe you should rewrite some functions with the gridspec package so that plots can be 
     flexible to take up to 30 cell types and adjust automatically to the number of cell-types.
 """
@@ -17,21 +17,24 @@ from distinctipy import distinctipy
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 import seaborn as sns
+import numpy as np
+import matplotlib.pyplot as plt
 
-def plotting_enr_depl_report(significant_enri, significant_depl, normalized_coocur, son, curves_colors = True, report_filename = "pancreas", file_extencion=".pdf", threshold_enr=2, threshold_depl=2, seed_= 13): 
+def plotting_enrichment_report(significant_enrichment, significant_depletion, normalized_coocurrence, son, curves_colors = True, 
+                               report_filename = "pancreas", file_extension=None, threshold_enrichment=2, threshold_depletion=2, seed_= 13): 
     """generates and saves a spatial correlation plot report.
     Generates a spatial correlation plot report and save is in the selected format, default=PDF.
 
     Args:
-        significant_enri (numpy.ndarray): Matrix of enriched values.
-        significant_depl (numpy.ndarray): Matrix of depleted values.
-        normalized_coocur (numpy.ndarray): Normalized co-occurrence data.
+        significant_enrichment (numpy.ndarray): Matrix of enriched values.
+        significant_depletion (numpy.ndarray): Matrix of depleted values.
+        normalized_coocurrence (numpy.ndarray): Normalized co-occurrence data.
         son: Sonar object.
         curves_colors (bool, optional): Whether to generate distinct curve colors. Default is True.
         report_filename (str, optional): Base filename for the generated report. Default is "pancreas".
         file_extension (str, optional): File extension for the report file. Default is ".pdf".
-        threshold_enr (float, optional): Threshold for enriched values. Default is 2.
-        threshold_depl (float, optional): Threshold for depleted values. Default is 2.
+        threshold_enrichment (float, optional): Threshold for enriched values. Default is 2.
+        threshold_depletion (float, optional): Threshold for depleted values. Default is 2.
         seed_ (int, optional): Seed for random color generation. Default is 13.
 
     Outputs:
@@ -42,18 +45,18 @@ def plotting_enr_depl_report(significant_enri, significant_depl, normalized_cooc
     # The part which is responcible for creating the color maps and color bars, preprocessing the data:
 
     # defining variables for the enriched and depleted plot:
-    signif_type_ = (significant_enri, significant_depl)
+    significance_type_ = (significant_enrichment, significant_depletion)
     cmap_names_ = ['enr_cmap', 'depl_cmap']
-    cmap_threshold_ = (threshold_enr, threshold_depl)
-    enr_color = [(0, 0, 0), (1, 0, 0)]
-    depl_color = [ (0, 0, 0),(0.4, 0.7, 0.9)]
-    cmap_colors_ = (enr_color, depl_color)
+    cmap_threshold_ = (threshold_enrichment, threshold_depletion)
+    enrichment_color = [(0, 0, 0), (1, 0, 0)]
+    depletion_color = [ (0, 0, 0),(0.4, 0.7, 0.9)]
+    cmap_colors_ = (enrichment_color, depletion_color)
 
     # lists for storage values
     signif_type_result = []
     cmap_result = []
     # colormaps and colorbars for enriched and depleted:
-    for signif_type, cmap_names, cmap_threshold, cmap_colors in zip(signif_type_, cmap_names_, cmap_threshold_, cmap_colors_):
+    for signif_type, cmap_names, cmap_threshold, cmap_colors in zip(significance_type_, cmap_names_, cmap_threshold_, cmap_colors_):
         heatmap_modif = signif_type.copy()
         if cmap_threshold:
             heatmap_modif[heatmap_modif<cmap_threshold] = 0
@@ -88,8 +91,9 @@ def plotting_enr_depl_report(significant_enri, significant_depl, normalized_cooc
 
     # filename
     formatted_datetime = datetime.now().strftime("%Y_%m_%d_%H_%M_%S") # just to make names of the output reports unique
-    filename = report_filename + formatted_datetime + file_extencion
-    pdf_pages = PdfPages(filename) # "open"the .pdf
+    if file_extension is not None:
+        filename = report_filename + formatted_datetime + file_extension
+        pdf_pages = PdfPages(filename) # "open"the .pdf
 
     # colors
     if curves_colors:
@@ -98,7 +102,7 @@ def plotting_enr_depl_report(significant_enri, significant_depl, normalized_cooc
         curves_colors = distinctipy.get_colors(N) # generate N visually distinct colours
 
 
-    for pivot_cell_type in range(normalized_coocur.shape[0]):
+    for pivot_cell_type in range(normalized_coocurrence.shape[0]):
         # hidden heatmaps for colorbars
         fig_not_show, (ax_noshow_enri, ax_noshow_depl) = plt.subplots(ncols=2, figsize = (3,2))
         sns.heatmap(enr_val_modif[pivot_cell_type,:,:], cmap=cmap_result[0], ax=ax_noshow_enri, cbar=False, xticklabels=False, yticklabels=False, vmin = 0, vmax=6)
@@ -114,8 +118,8 @@ def plotting_enr_depl_report(significant_enri, significant_depl, normalized_cooc
         plt.subplots_adjust(hspace=0.07)
 
         # Generating curves
-        for target_cell_type in range(normalized_coocur.shape[0]):
-            ax_curve.plot(normalized_coocur[pivot_cell_type,target_cell_type], color=curves_colors[target_cell_type % len(curves_colors)], 
+        for target_cell_type in range(normalized_coocurrence.shape[0]):
+            ax_curve.plot(normalized_coocurrence[pivot_cell_type,target_cell_type], color=curves_colors[target_cell_type % len(curves_colors)], 
             label=(son.meta.index.to_list()[target_cell_type] + " (" + str(son.meta["pixel_percentage"].to_list()[target_cell_type]) + "%)"))
             ax_curve.legend(loc="upper right", bbox_to_anchor=(1.4, 1), borderaxespad=1.5)
             ax_curve.set_ylim(0,5)
@@ -125,7 +129,7 @@ def plotting_enr_depl_report(significant_enri, significant_depl, normalized_cooc
         # significance heatmap
         sns.heatmap(enr_depl_merged[pivot_cell_type,:,:], cmap=cmap4merged2black, ax=ax_show_comb, cbar=False, yticklabels = son.meta.index.to_list())
         ax_show_comb.set_xlabel('Distance from center (um)', fontsize = 12)
-        ax_show_comb.text((normalized_coocur.shape[2]+2*(normalized_coocur.shape[2]/figwidth)),1,"Significance \n (-log10 p-value)", fontsize=12, ha="right", va='top')
+        ax_show_comb.text((normalized_coocurrence.shape[2]+2*(normalized_coocurrence.shape[2]/figwidth)),1,"Significance \n (-log10 p-value)", fontsize=12, ha="right", va='top')
 
         cbar_ax1 = fig.add_axes([9.3/figwidth, 0.12, 0.02, 0.25]) #parameters for colorbars (left, bottom, width, hight)
         cbar_ax1.text(-8.5/figwidth,35/figheight,"Enrichment", fontsize = 10, rotation=90) # current proportions are not optimal. Needs a better way. Maybe a gridspec.
@@ -142,10 +146,12 @@ def plotting_enr_depl_report(significant_enri, significant_depl, normalized_cooc
         # plt.savefig("output.png") # .pdf takes ages to generate, so I switched to .png
 
         # Save the current figure to the PDF file
-        pdf_pages.savefig()
+        if file_extension is not None:
+            pdf_pages.savefig()
 
         # Close the current figure
         plt.close()
                 
     # Close the PDF file
-    pdf_pages.close()
+    if file_extension is not None:
+        pdf_pages.close()   
