@@ -220,8 +220,12 @@ class Generator():
             # generative_tensor = generative_tensor*(1-momentum_map)+generative_map_old*momentum_map
             # generative_tensor = generative_tensor**2
             if (render_args is not None) and (i%render_args['steps_per_frame']==0):
-                # print(d_generative_map.min(),d_generative_map.max(),d_map_stds)
-                self.render_map(generative_tensor,d_sample,d_auto_coocs, i, render_args),
+                if 'render_stats' in render_args and render_args['render_stats']:
+                    self.render_map(generative_tensor,d_sample,d_auto_coocs, i, render_args)
+                    
+                else:
+                    self.render_image(generative_tensor, d_auto_coocs, i, render_args)
+                # self.render_map(generative_tensor,d_sample,d_auto_coocs, i, render_args),
                 
         return generative_tensor
 
@@ -260,3 +264,10 @@ class Generator():
         plt.savefig(f'{render_args["save_dir"]}/{render_args["suffix"]}{i:0>4d}.png')
         plt.close()
 
+    def render_image(self,generative_map, d_auto_coocs, i, render_args):
+        """ """
+        fig, ax = plt.subplots(figsize=(12,12))
+        plt.imshow(generative_map.argmax(0).cpu().numpy(),
+                   cmap=nipy_spectral,interpolation='none',vmin=0,vmax=d_auto_coocs.shape[0]-1)
+        plt.savefig(f'{render_args["save_dir"]}/{render_args["suffix"]}{i:0>4d}.png')
+        plt.close()

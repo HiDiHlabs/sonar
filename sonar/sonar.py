@@ -108,7 +108,7 @@ class Sonar():
         circumference_normalization (bool): Whether to normalize the co-occurrence curves.
     """
     
-    def __init__(self, labels, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
+    def __init__(self, labels=None, max_radius=20, linear_radius_steps=20, max_radius_step_size=20,circumference_normalization=True, device=device,edge_correction=False):
         
         self.max_radius = max_radius
         self.max_radius_step_size = max_radius_step_size
@@ -255,6 +255,6 @@ class Sonar():
         #         # self.radii = radii
         #     return radii, co_occurrences
 
-            self.co_occurrence = co_occurrences
-            return co_occurrences
+        self.co_occurrence = co_occurrences
+        return co_occurrences
 
