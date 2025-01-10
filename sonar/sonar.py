@@ -232,8 +232,9 @@ class Sonar():
             if progbar:
                 pbar = tqdm.tqdm(total=total_computations)
             for i in range(n_classes):
+                h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
+                                
                 for r in range(self.kernels.shape[0]):
-                    h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
                     h1_fftprod =  (h1_fft*kernels_fft[r])
 
                     h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[0,1]).float()
@@ -241,10 +242,10 @@ class Sonar():
                                     width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
 
                     if self.edge_correction:
-                        h1_conv = h1_conv/bg_conv
-                        # h1_conv[h1_conv<0]=0
+                        h1_conv = h1_conv/bg_conv[r]
 
-                    h1_product=h1_conv*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
+                    h1_product=h1_conv*hists[i]
+                    
                     co_occurrences[i,i,r]=h1_product.sum().cpu()
 
                     for j in range(i+1,n_classes):
