@@ -122,7 +122,7 @@ class Sonar():
         self.pixel_proportions = None
         # TODO:
         self.co_occurrence=None
-        self.radii=None
+        # self.radii=None
         self.labels = labels
         self.meta = pd.DataFrame(index=labels) # <- user-provided class labels,colors, etc., range(n_celltypes) otherwise.
         # store co-occurrence analysis result in sonar object (self.co_occurrence=...)
@@ -148,7 +148,7 @@ class Sonar():
 
         return self.co_occurrence_from_tensor(topographic_tensor)
     
-    def co_occurrence_from_tensor(self, hists, interpolate='linear',  progbar=False, area_normalization=True):
+    def co_occurrence_from_tensor(self, hists, interpolate='linear',  progbar=False, area_normalization=True, memory_efficient=False):
         """Calculates co-occurrence curves for a topographic tensor.
         
         Args:
@@ -192,68 +192,97 @@ class Sonar():
                             width_kernel//2:width_kernel//2+hists[0].shape[1]] 
             bg_conv[bg_conv<=0]=1
 
-        total_computations = (n_classes**2+n_classes)/2
+        
         n_computations = 0
 
 
-        if progbar:
-            pbar = tqdm.tqdm(total=total_computations)
 
-        # with tqdm.tqdm(total=total_computations, disable=~progbar) as _:
-        for i in range(n_classes):
-            # print(i)
-            h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
-            h1_fftprod =  (h1_fft*kernels_fft)
-
-            h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2]).float()
-            h1_conv =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
-                            width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
-
-            if self.edge_correction:
-                h1_conv = h1_conv/bg_conv
-                # h1_conv[h1_conv<0]=0
-
-            h1_product=h1_conv*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
-            co_occurrences[i,i]=h1_product.sum(dim=(1,2)).cpu()
-
-            for j in range(i+1,n_classes):
-                h2_product=h1_conv*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
-                co_occurrences[i,j] = h2_product.sum(dim=(1,2)).cpu()
-                co_occurrences[j,i]= co_occurrences[i,j]
-            n_computations += n_classes-i-1
-
+        if not memory_efficient:
+            total_computations = (n_classes**2+n_classes)/2
             if progbar:
-                pbar.update(n_classes-i)
+                pbar = tqdm.tqdm(total=total_computations)
+                
+            for i in range(n_classes):
+                # print(i)
+                h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
+                h1_fftprod =  (h1_fft*kernels_fft)
 
-        # # final normalization
-        # n, _, m = co_occurrences.shape
-        # normalized_coocur = np.zeros_like(co_occurrences)
+                h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[1,2]).float()
+                h1_conv =  h1_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
+                                width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
 
-        # if interpolate: 
-        #     co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
-        #     if area_normalization:
-        #         co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
-        #         # for i in range(n):
-        #         #     for j in range(n):
-        #         #         for k in range(m):
-        #         #             normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+                if self.edge_correction:
+                    h1_conv = h1_conv/bg_conv
+                    # h1_conv[h1_conv<0]=0
 
-        #         # co_occurrences = normalized_coocur
-        #         # self.co_occurrence = normalized_coocur
-        #     return co_occurrences
+                h1_product=h1_conv*hists[i]#/np.sum(kernels,axis=(1,2))[:,None,None]
+                co_occurrences[i,i]=h1_product.sum(dim=(1,2)).cpu()
+
+                for j in range(i+1,n_classes):
+                    h2_product=h1_conv*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
+                    co_occurrences[i,j] = h2_product.sum(dim=(1,2)).cpu()
+                    co_occurrences[j,i]= co_occurrences[i,j]
+                n_computations += n_classes-i-1
+
+                if progbar:
+                    pbar.update(n_classes-i)
+                    
+        else:
+            total_computations = (n_classes**2+n_classes)/2*self.kernels.shape[0]
+            if progbar:
+                pbar = tqdm.tqdm(total=total_computations)
+            for i in range(n_classes):
+                h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
+                                
+                for r in range(self.kernels.shape[0]):
+                    h1_fftprod =  (h1_fft*kernels_fft[r])
+
+                    h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[0,1]).float()
+                    h1_conv =  h1_conv[width_kernel//2:width_kernel//2+hists[0].shape[0],
+                                    width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
+
+                    if self.edge_correction:
+                        h1_conv = h1_conv/bg_conv[r]
+
+                    h1_product=h1_conv*hists[i]
+                    
+                    co_occurrences[i,i,r]=h1_product.sum().cpu()
+
+                    for j in range(i+1,n_classes):
+                        h2_product=h1_conv*hists[j]#/np.sum(kernels,axis=(1,2))[:,None,None]
+                        co_occurrences[i,j,r] = h2_product.sum().cpu()
+                        co_occurrences[j,i,r]= co_occurrences[i,j,r]
+                    n_computations += n_classes-i-1
+
+                if progbar:
+                    pbar.update(n_classes-i)
+
+
+        if interpolate: 
+            co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
+            if area_normalization:
+                co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
+                # for i in range(n):
+                #     for j in range(n):
+                #         for k in range(m):
+                #             normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+
+                # co_occurrences = normalized_coocur
+                # self.co_occurrence = normalized_coocur
+            # return co_occurrences
         
-        # else:
-        #     if area_normalization:
-        #         co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
-        #         # for i in range(n):
-        #         #     for j in range(n):
-        #         #         for k in range(m):
-        #         #             normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
+        else:
+            if area_normalization:
+                co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])
+                # for i in range(n):
+                #     for j in range(n):
+                #         for k in range(m):
+                #             normalized_coocur[i, j, k] = co_occurrences[i, j, k] / (self.pixel_counts[j]*self.pixel_proportions[i])
 
-        #         # co_occurrences = normalized_coocur
-        #         # self.co_occurrence = normalized_coocur
-        #         # self.radii = radii
-        #     return radii, co_occurrences
+                # co_occurrences = normalized_coocur
+                # self.co_occurrence = normalized_coocur
+                # self.radii = radii
+            return radii, co_occurrences
 
         self.co_occurrence = co_occurrences
         return co_occurrences
