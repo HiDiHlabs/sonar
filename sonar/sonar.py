@@ -167,37 +167,36 @@ class Sonar():
         self.meta["pixel_proportions"] = self.pixel_proportions
 
         # Determine dimensions of the input/output/intermediate variables
-        n_classes = hists.shape[0]      
+        n_classes = hists.shape[0] 
+        map_size = hists.shape[1:]     
+        
         kernels,radii = self.kernels,self.radii
-        map_size = hists.shape[1:]
         kernel_size = self.kernels.shape[1:]
             
+        width_kernel=kernels[0].shape[0]
 
         co_occurrences = np.empty((n_classes, n_classes,self.kernels.shape[0]))
 
         shape = [kernel_size[i]+map_size[i] for i in range(2)]
         fshape = [sp_fft.next_fast_len(shape[a], True) for a in [0,1]]
-
-        kernels_fft = (t.fft.rfftn(kernels.float(), fshape,dim=[1,2]))
-
-        width_kernel=kernels[0].shape[0]
-        
-        if self.edge_correction:
-            bg_mask = hists.sum(dim=0)
-            bg_fft = t.fft.rfftn(bg_mask.float(), fshape,dim=[0,1])
-            bg_fftprod =  (bg_fft*kernels_fft)
-
-            bg_conv = t.fft.irfftn(bg_fftprod,fshape,dim=[1,2]).float()
-            bg_conv =  bg_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
-                            width_kernel//2:width_kernel//2+hists[0].shape[1]] 
-            bg_conv[bg_conv<=0]=1
-
         
         n_computations = 0
-
-
-
+        
         if not memory_efficient:
+
+            kernels_fft = (t.fft.rfftn(kernels.float(), fshape,dim=[1,2]))
+
+            if self.edge_correction:
+                bg_mask = hists.sum(dim=0)
+                bg_fft = t.fft.rfftn(bg_mask.float(), fshape,dim=[0,1])
+                bg_fftprod =  (bg_fft*kernels_fft)
+
+                bg_conv = t.fft.irfftn(bg_fftprod,fshape,dim=[1,2]).float()
+                bg_conv =  bg_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
+                                width_kernel//2:width_kernel//2+hists[0].shape[1]] 
+                bg_conv[bg_conv<=0]=1
+
+        
             total_computations = (n_classes**2+n_classes)/2
             if progbar:
                 pbar = tqdm.tqdm(total=total_computations)
@@ -231,18 +230,36 @@ class Sonar():
             total_computations = (n_classes**2+n_classes)/2*self.kernels.shape[0]
             if progbar:
                 pbar = tqdm.tqdm(total=total_computations)
-            for i in range(n_classes):
-                h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
-                                
-                for r in range(self.kernels.shape[0]):
-                    h1_fftprod =  (h1_fft*kernels_fft[r])
+                
+            if self.edge_correction:
+                bg_mask = hists.sum(dim=0)
+                bg_fft = t.fft.rfftn(bg_mask.float(), fshape,dim=[0,1])
+                
+            
+            for r in range(self.kernels.shape[0]):
+                kernel_fft = t.fft.rfftn(kernels[r:r+1].float(), fshape,dim=[1,2])
+                
+                if self.edge_correction:
+                    bg_fftprod =  (bg_fft*kernel_fft)
 
-                    h1_conv = t.fft.irfftn(h1_fftprod,fshape,dim=[0,1]).float()
+                    bg_conv = t.fft.irfftn(bg_fftprod,fshape,dim=[1,2]).float()
+                    bg_conv =  bg_conv[:,width_kernel//2:width_kernel//2+hists[0].shape[0],
+                                    width_kernel//2:width_kernel//2+hists[0].shape[1]] 
+                    bg_conv[bg_conv<=0]=1
+                
+                for i in range(n_classes):
+                    h1_fft = t.fft.rfftn(hists[i].float(), fshape,dim=[0,1])
+                                    
+                    h1_fftprod =  (h1_fft*kernel_fft)
+                    # print(h1_fftprod.shape,fshape)
+                    
+
+                    h1_conv = t.fft.irfftn(h1_fftprod[0],fshape,dim=[0,1]).float()
                     h1_conv =  h1_conv[width_kernel//2:width_kernel//2+hists[0].shape[0],
                                     width_kernel//2:width_kernel//2+hists[0].shape[1]] #signal._signaltools._centered(h1_conv,[len(kernels)]+fshape).copy()
 
                     if self.edge_correction:
-                        h1_conv = h1_conv/bg_conv[r]
+                        h1_conv = h1_conv/bg_conv[0]
 
                     h1_product=h1_conv*hists[i]
                     
