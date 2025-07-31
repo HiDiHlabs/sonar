@@ -16,8 +16,10 @@ class Generator():
         self.sonar = sonar
         self.kernels = sonar.kernels
         self.radii = (sonar.kernels>0.0).sum(dim=(1,2)).float()
+        self.radius_steps = t.cat([t.tensor([1],device=sonar.device),t.diff(self.radii)])
         self.device=sonar.device
         self.shape = shape
+        self.losses = []
         self.area = shape[0]*shape[1]
         
         shape = [self.kernels.shape[i+1]+shape[i] for i in range(2)]
@@ -55,7 +57,12 @@ class Generator():
 
         if mode =="random_uniform":
             generative_tensor = t.rand((template_co_occurrence.shape[0],self.shape[0],self.shape[1]), dtype=t.float32, device=self.device)
-            generative_tensor *= surface_counts[:,None,None]/generative_tensor.sum(dim=(1,2))[:,None,None]
+            # generative_tensor *= surface_counts[:,None,None]/generative_tensor.sum(dim=(1,2))[:,None,None]
+        if mode == "random_weighted":
+            generative_tensor = t.ones((template_co_occurrence.shape[0],self.shape[0],self.shape[1]), dtype=t.float32, device=self.device)
+            generative_tensor *= template_co_occurrence[:,:,0].diagonal()[:,None,None]/template_co_occurrence[:,:,0].diagonal().sum()
+            generative_tensor += t.normal(0,0.01,generative_tensor.shape, dtype=t.float32, device=self.device)
+            generative_tensor = generative_tensor.clamp(min=0,max=1)
         elif mode=="random_int":
             probabilities = surface_counts/surface_counts.sum()
             cdf = probabilities.cumsum(0)
@@ -74,7 +81,7 @@ class Generator():
         return generative_tensor
 
 
-    def determine_loss(self, generative_map, template_co_occurrence,momentum=0):
+    def determine_loss(self, generative_map, template_co_occurrence,momentum=0,temperature=0):
         """Calculates the loss between a generative map's co-occurrence and a template co-occurrence curve.
         
         Args:
@@ -92,6 +99,8 @@ class Generator():
         kernels_fft = (t.fft.rfftn(self.kernels.float(), self.fshape,dim=[1,2]))
         
         d_auto_coocs=[]
+        
+        radius_steps = t.tensor(self.radius_steps, dtype=t.float32, device=self.device)+1
 
         for i in range(generative_map.shape[0]):
 
@@ -106,7 +115,7 @@ class Generator():
             co_occurrence/=self.area
 
             d_cooc = template_co_occurrence[i,i]-co_occurrence
-            self.d_co_occurrence[i,i] = (self.d_co_occurrence[i,i]*momentum+d_cooc*(1-momentum))/self.radii**0.0
+            self.d_co_occurrence[i,i] = (self.d_co_occurrence[i,i]*momentum+d_cooc*(1-momentum)*t.nan_to_num(radius_steps**(temperature/2-0.1)))
 
             d_auto_coocs.append(self.d_co_occurrence[i,i].cpu().numpy())
 
@@ -118,7 +127,7 @@ class Generator():
                 co_occurrence = h2_product.sum(dim=(1,2))
                 co_occurrence/=self.area
                 d_cooc = template_co_occurrence[i,j]-co_occurrence
-                self.d_co_occurrence[i,j] = (self.d_co_occurrence[i,j]*momentum+d_cooc*(1-momentum))/self.radii**0.0
+                self.d_co_occurrence[i,j] = (self.d_co_occurrence[i,j]*momentum+d_cooc*(1-momentum)*t.nan_to_num(radius_steps**(temperature/2-0.1)))
                 d_update = (h2_product*self.d_co_occurrence[i,j][:,None,None]).mean(0)
                 d_generative_map[i] += d_update
                 d_generative_map[j] += d_update
@@ -130,7 +139,7 @@ class Generator():
 
     def generate(self, template_co_occurrence, iterations=100, lr=5, lr_decay=0.99, 
                  momentum=0.99, momentum_map=0.9, 
-                 verbose=True, render_args=None, init_mode="random_uniform"):
+                 verbose=True, render_args=None, noise_injection=0.1,init_mode="random_uniform"):
         """Generates a topographic tensor from a template co-occurrence curve.
         
         Args:
@@ -163,15 +172,18 @@ class Generator():
         self.d_co_occurrence = t.zeros_like(template_co_occurrence)
         template_co_occurrence/=total_counts
         generative_tensor = self.initiate_map(template_co_occurrence,mode=init_mode)
-        # generative_map = generative_tensor.argmax(0)    
-
-
+        
+        self.losses = []
+        
+        
         for i in tqdm.tqdm(range(iterations)):
             
-            temperature = i/iterations
+            temperature = 1-(i/iterations)*0.9
 
             d_sample_old = generative_tensor.clone()
-            d_sample,d_auto_coocs = self.determine_loss(generative_tensor.clone(), template_co_occurrence.clone(),momentum=momentum)
+            d_sample,d_auto_coocs = self.determine_loss(generative_tensor.clone(), template_co_occurrence.clone(),momentum=momentum,temperature=temperature)
+            
+            self.losses.append(d_sample.abs().mean().item())
 
             d_sample_stds = d_sample.std(dim=(1,2))
             d_sample_stds[d_sample_stds<0.00001] = 0.00001
@@ -179,57 +191,38 @@ class Generator():
             # print(d_sample.min(),d_sample.max()) 
 
             d_sample = d_sample*(momentum_map)+d_sample_old*(1-momentum_map)
-            generative_tensor += d_sample*lr*(1-temperature)**(lr_decay)
+            generative_tensor += d_sample*lr*(temperature)**(lr_decay)
+            
+            if temperature>0.2:
+                # produce a mask of noise-injection candidates:
+                noise_injection_mask = t.rand(generative_tensor.shape[1:])<(noise_injection)
+                
+                # apply noise to the generative tensor at the noise-injection candidates:
+                generative_tensor[:,noise_injection_mask] += t.normal(0,temperature**2/5,(generative_tensor.shape[0],noise_injection_mask.sum()),dtype=t.float32, device=self.device)
+                # clean momentum at noise injection candidates:
+                d_sample[:,noise_injection_mask] = 0
+            
+            # if np.random.uniform()<(temperature*noise_injection):
+            #     x = np.random.randint(0,generative_tensor.shape[1]-50)
+            #     y = np.random.randint(0,generative_tensor.shape[2]-50)
+            #     generative_tensor[:,x:x+50,y:y+50] += t.normal(0,0.001,(generative_tensor.shape[0],50,50),dtype=t.float32, device=self.device)
             
             generative_tensor[generative_tensor<0] = 0
-            generative_tensor[generative_tensor>1] = generative_tensor[generative_tensor>1]**0.2
-            # sample_tissue_tensor = sample_tissue_tensor**0.8
-            # sample_tissue_tensor/=(sample_tissue_tensor.sum(0)+0.00001)[None]
-
-            # generative_tensor *= (1-temperature)
-            # generative_tensor += (temperature)
-
-            # # d_generative_map-=d_generative_map.mean()
-            # d_map_stds = d_generative_map.std(dim=(1,2))+0.01
-            # # # d_map_stds[d_map_stds<1] = 1
-            # # d_generative_map/=d_map_stds[:,None,None]
-
-            # # if d_generative_map.std()>0.0001:
-            # # d_generative_map/=d_generative_map.std()+0.5
-            # # d_generative_map/=max(d_generative_map.max(),-d_generative_map.min())
-
-            # # print(d_generative_map.max(),d_generative_map.min())
-            # # update generative map
-            # generative_tensor+=lr*d_generative_map
-            # # generative_tensor*=t.rand_like(generative_tensor)**(0.5)
-
-            # # turn into a proper probability distribution, with a temperature parameter 
-            # # determining the 
-
-            # # print("counts:",counts  )
-            # opt = self.optimize_combinations(generative_tensor.clone(),counts,iterations=10,exponent=1.1+temperature)
-
-            # generative_tensor = opt
-
-            # # generative_tensor-=generative_tensor.min(dim=0,keepdim=True)[0]
-            # # generative_tensor = t.nn.functional.softmax(generative_tensor*(5+temperature*3),dim=0)
-            # # # generative_tensor = generative_tensor**(1.1)
-            # # # generative_tensor/=generative_tensor.sum(dim=0,keepdim=True)+0.0001
-
-
-            # generative_tensor = generative_tensor*(1-momentum_map)+generative_map_old*momentum_map
-            # generative_tensor = generative_tensor**2
+            generative_tensor[generative_tensor>1] = generative_tensor[generative_tensor>1]**(0.1*temperature)
+            
+            # generative_tensor = generative_tensor/generative_tensor.sum(dim=0,keepdim=True).clamp(min=0.00001)
+            
             if (render_args is not None) and (i%render_args['steps_per_frame']==0):
                 if 'render_stats' in render_args and render_args['render_stats']:
-                    self.render_map(generative_tensor,d_sample,d_auto_coocs, i, render_args)
+                    self.render_map(generative_tensor,d_sample,d_auto_coocs, i, i//render_args['steps_per_frame'], render_args)
                     
                 else:
-                    self.render_image(generative_tensor, d_auto_coocs, i, render_args)
+                    self.render_image(generative_tensor, d_auto_coocs, i, i//render_args['steps_per_frame'], render_args)
                 # self.render_map(generative_tensor,d_sample,d_auto_coocs, i, render_args),
                 
         return generative_tensor
 
-    def render_map(self,generative_map,d_generative_map,d_auto_coocs, i, render_args):
+    def render_map(self,generative_map,d_generative_map,d_auto_coocs, n_frame, i, render_args):
         """ """
 
         fig, ax = plt.subplots(figsize=(16,12))
@@ -243,15 +236,16 @@ class Generator():
             plt.plot(d_auto_coocs[j],color=nipy_spectral(j/d_auto_coocs.shape[0]))
 
         plt.subplot(2,3,3)
+        plt.title("max_values")
         plt.plot(sorted(generative_map.max(dim=0)[0].cpu().numpy().flatten()))
 
         plt.subplot(2,3,4)
-        plt.title("std")
+        plt.title("std delta")
         plt.imshow(generative_map.std(dim=0).cpu().numpy(),vmin=0,vmax=2)
         plt.colorbar()
 
         plt.subplot(2,3,5)
-        plt.title("max")
+        plt.title("max delta")
         plt.imshow(d_generative_map.max(dim=0)[0].cpu().numpy())
         plt.colorbar()
 
@@ -261,13 +255,13 @@ class Generator():
             plt.bar([j],[sums[j]],color=nipy_spectral(j/d_auto_coocs.shape[0]))
 
 
-        plt.savefig(f'{render_args["save_dir"]}/{render_args["suffix"]}{i:0>4d}.png')
+        plt.savefig(f'{render_args["save_dir"]}/{render_args["suffix"]}{i:0>4d}.svg')
         plt.close()
 
-    def render_image(self,generative_map, d_auto_coocs, i, render_args):
+    def render_image(self,generative_map, d_auto_coocs, n_frame, i, render_args):
         """ """
         fig, ax = plt.subplots(figsize=(12,12))
         plt.imshow(generative_map.argmax(0).cpu().numpy(),
                    cmap=nipy_spectral,interpolation='none',vmin=0,vmax=d_auto_coocs.shape[0]-1)
-        plt.savefig(f'{render_args["save_dir"]}/{render_args["suffix"]}{i:0>4d}.png')
+        plt.savefig(f'{render_args["save_dir"]}/{render_args["suffix"]}{i:0>4d}.svg',dpi=300)
         plt.close()

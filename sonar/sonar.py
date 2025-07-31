@@ -94,6 +94,8 @@ def _interpolate(x,y,step, method='linear'):
         return np.apply_along_axis(lambda x_ :  interpolate.interp1d(x,x_,kind='linear',fill_value='extrapolate')(np.arange(0,x.max()*step)),2,y)
     elif method=='BSpline':
         return np.apply_along_axis(lambda x_ :  interpolate.BSpline(*interpolate.splrep(x,x_,s=1,k=2), extrapolate=False)(np.arange(0,x.max()*step)),2,y)
+    else:
+        print("No valid interpolation method chosen.")
 
 class Sonar():
     """Generates co-occurrence curves from topographic maps.
@@ -276,7 +278,9 @@ class Sonar():
 
 
         if interpolate: 
+
             co_occurrences = _interpolate(radii, co_occurrences, 1, method=interpolate)
+
             if area_normalization:
                 co_occurrences = co_occurrences/(co_occurrences[:,:,0].diagonal()[:,None,None])   
                 # for i in range(n):

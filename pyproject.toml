@@ -1,0 +1,25 @@
+[project]
+name = "sonar"
+version = "0.1.0"
+description = "A python package for calculating co-occurrence curves from topographic pixel maps."
+authors = [
+    {name = "Sebastian Tiesmeyer", email = "sebastian.tiesmeyer@bih-charite.de"}
+]
+# license = {text = "BSD-2-Clause"}
+requires-python = ">=3.7"
+dependencies = [
+    "numpy",
+    "scipy",
+    "torch",
+    "pandas",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/HiDiHlabs/sonar"
+
+[tool.setuptools.packages.find]
+include = ["sonar*"]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
