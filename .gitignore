@@ -134,3 +134,9 @@ dmypy.json
 # any generated output files:
 *.png
 *.mp4
+*.svg
+
+conda-env
+
+test
+output
