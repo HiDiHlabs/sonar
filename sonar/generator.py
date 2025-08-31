@@ -115,7 +115,7 @@ class Generator():
             co_occurrence/=self.area
 
             d_cooc = template_co_occurrence[i,i]-co_occurrence
-            self.d_co_occurrence[i,i] = (self.d_co_occurrence[i,i]*momentum+d_cooc*(1-momentum)*t.nan_to_num(radius_steps**(temperature/2-0.1)))
+            self.d_co_occurrence[i,i] = (self.d_co_occurrence[i,i]*momentum+d_cooc*(1-momentum)*t.nan_to_num(radius_steps**(temperature/2)))
 
             d_auto_coocs.append(self.d_co_occurrence[i,i].cpu().numpy())
 
@@ -127,7 +127,7 @@ class Generator():
                 co_occurrence = h2_product.sum(dim=(1,2))
                 co_occurrence/=self.area
                 d_cooc = template_co_occurrence[i,j]-co_occurrence
-                self.d_co_occurrence[i,j] = (self.d_co_occurrence[i,j]*momentum+d_cooc*(1-momentum)*t.nan_to_num(radius_steps**(temperature/2-0.1)))
+                self.d_co_occurrence[i,j] = (self.d_co_occurrence[i,j]*momentum+d_cooc*(1-momentum)*t.nan_to_num(radius_steps**(temperature/2)))
                 d_update = (h2_product*self.d_co_occurrence[i,j][:,None,None]).mean(0)
                 d_generative_map[i] += d_update
                 d_generative_map[j] += d_update
